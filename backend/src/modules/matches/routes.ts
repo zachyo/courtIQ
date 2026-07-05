@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../../lib/prisma.js';
 import { uniqueMatchCode } from '../../lib/matchCode.js';
+import { broadcastToMatch } from '../../realtime/socket.js';
 import { USERNAME_PATTERN } from '../players/routes.js';
 import { matchInclude, serializeMatch } from './serializers.js';
 
@@ -124,7 +125,15 @@ export async function matchRoutes(app: FastifyInstance) {
       return { match: serializeMatch(match) };
     });
 
-    // Update settings while the match is still pending
+    // Deleting a match cascades to teams, match players, score events, comments
+    managerRoutes.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {
+      const match = await loadOwnedMatch(request.params.id, request.user.sub);
+      if (!match) return reply.notFound('Match not found');
+      await prisma.match.delete({ where: { id: match.id } });
+      return { deleted: true };
+    });
+
+    // Update settings while pending; only the comments toggle once live
     managerRoutes.patch<{
       Params: { id: string };
       Body: {
@@ -143,8 +152,14 @@ export async function matchRoutes(app: FastifyInstance) {
       async (request, reply) => {
         const match = await loadOwnedMatch(request.params.id, request.user.sub);
         if (!match) return reply.notFound('Match not found');
-        if (match.status !== 'PENDING') {
-          return reply.badRequest('Settings can only be changed before the match starts');
+        if (match.status === 'FINISHED') {
+          return reply.badRequest('Settings cannot be changed after the match ends');
+        }
+        if (
+          match.status === 'LIVE' &&
+          Object.keys(request.body).some((key) => key !== 'commentsEnabled')
+        ) {
+          return reply.badRequest('Only comments can be toggled while the match is live');
         }
 
         const updated = await prisma.match.update({
@@ -152,7 +167,12 @@ export async function matchRoutes(app: FastifyInstance) {
           data: request.body,
           include: matchInclude,
         });
-        return { match: serializeMatch(updated) };
+
+        const serialized = serializeMatch(updated);
+        if (match.status === 'LIVE') {
+          broadcastToMatch(app.io, updated, 'match:settings', { match: serialized });
+        }
+        return { match: serialized };
       },
     );
 

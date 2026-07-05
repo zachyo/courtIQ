@@ -43,11 +43,68 @@ export async function playerRoutes(app: FastifyInstance) {
             : {}),
         },
         orderBy: { createdAt: 'desc' },
-        take: 20,
+        take: 100,
       });
       return { players: players.map(publicPlayer) };
     },
   );
+
+  // Post-match prompt: keep (or unkeep) players for future games
+  app.post<{ Body: { playerIds: string[]; keep?: boolean } }>(
+    '/keep',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['playerIds'],
+          properties: {
+            playerIds: {
+              type: 'array',
+              items: { type: 'string' },
+              minItems: 1,
+              maxItems: 30,
+            },
+            keep: { type: 'boolean' },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (request) => {
+      const keep = request.body.keep ?? true;
+      await prisma.player.updateMany({
+        where: { id: { in: request.body.playerIds }, managerId: request.user.sub },
+        data: { keptForFuture: keep },
+      });
+      const players = await prisma.player.findMany({
+        where: { id: { in: request.body.playerIds }, managerId: request.user.sub },
+      });
+      return { players: players.map(publicPlayer) };
+    },
+  );
+
+  // Career stats across finished matches (kept-roster players accumulate these)
+  app.get<{ Params: { id: string } }>('/:id/stats', async (request, reply) => {
+    const player = await prisma.player.findUnique({ where: { id: request.params.id } });
+    if (!player || player.managerId !== request.user.sub) {
+      return reply.notFound('Player not found');
+    }
+
+    const appearances = await prisma.matchPlayer.findMany({
+      where: { playerId: player.id, match: { status: 'FINISHED' } },
+      include: { match: true },
+    });
+
+    return {
+      player: publicPlayer(player),
+      stats: {
+        games: appearances.length,
+        points: appearances.reduce((sum, mp) => sum + mp.points, 0),
+        wins: appearances.filter((mp) => mp.match.winnerTeamId === mp.teamId).length,
+        mvps: appearances.filter((mp) => mp.match.mvpPlayerId === player.id).length,
+      },
+    };
+  });
 
   // Exact-username lookup — lets a manager find any existing player to assign
   app.get<{ Params: { username: string } }>(

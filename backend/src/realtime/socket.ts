@@ -29,3 +29,15 @@ export function createRealtime(httpServer: HttpServer) {
 export function matchRoom(code: string) {
   return `match:${code.toUpperCase()}`;
 }
+
+// Spectators join rooms by code, so PRIVATE matches must never broadcast
+export function broadcastToMatch(
+  io: Server,
+  match: { code: string; visibility: string },
+  event: string,
+  payload: unknown,
+) {
+  if (match.visibility === 'PUBLIC') {
+    io.to(matchRoom(match.code)).emit(event, payload);
+  }
+}

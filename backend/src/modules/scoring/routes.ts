@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../../lib/prisma.js';
-import { matchRoom } from '../../realtime/socket.js';
+import { broadcastToMatch } from '../../realtime/socket.js';
 import { matchInclude, serializeMatch, type MatchWithTeams } from '../matches/serializers.js';
 
 const scoreBody = {
@@ -23,11 +23,8 @@ async function loadOwnedMatch(matchId: string, managerId: string) {
 }
 
 export async function scoringRoutes(app: FastifyInstance) {
-  // Spectators join the socket room by code, so PRIVATE matches stay silent
   function broadcast(match: MatchWithTeams, event: string, payload: unknown) {
-    if (match.visibility === 'PUBLIC') {
-      app.io.to(matchRoom(match.code)).emit(event, payload);
-    }
+    broadcastToMatch(app.io, match, event, payload);
   }
 
   // Public: live event feed for spectators (score timeline)
@@ -181,9 +178,20 @@ export async function scoringRoutes(app: FastifyInstance) {
             ? teamA.id
             : teamB.id;
 
+      // Auto-suggest MVP: outright top scorer (ties left null for manual pick)
+      const ranked = match.teams
+        .flatMap((team) => team.players)
+        .sort((a, b) => b.points - a.points);
+      const mvpPlayerId =
+        ranked.length > 0 &&
+        ranked[0].points > 0 &&
+        (ranked.length === 1 || ranked[0].points > ranked[1].points)
+          ? ranked[0].playerId
+          : null;
+
       const updated = await prisma.match.update({
         where: { id: match.id },
-        data: { status: 'FINISHED', endedAt: new Date(), winnerTeamId },
+        data: { status: 'FINISHED', endedAt: new Date(), winnerTeamId, mvpPlayerId },
         include: matchInclude,
       });
 

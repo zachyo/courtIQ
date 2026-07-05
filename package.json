@@ -1,0 +1,13 @@
+{
+  "name": "courtiq",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CourtIQ — manual basketball match scoring app (backend + web frontend)",
+  "scripts": {
+    "build": "cd backend && npm ci && npm run build && cd ../frontend && npm ci && npm run build",
+    "start": "cd backend && npm run start:railway"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

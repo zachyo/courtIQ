@@ -33,7 +33,10 @@ function publicUser(user: { id: string; email: string; displayName: string; crea
 export async function authRoutes(app: FastifyInstance) {
   app.post<{ Body: { email: string; password: string; displayName: string } }>(
     '/register',
-    { schema: { body: registerBody } },
+    {
+      schema: { body: registerBody },
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+    },
     async (request, reply) => {
       const { email, password, displayName } = request.body;
 
@@ -54,7 +57,10 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.post<{ Body: { email: string; password: string } }>(
     '/login',
-    { schema: { body: credentialsBody } },
+    {
+      schema: { body: credentialsBody },
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+    },
     async (request, reply) => {
       const { email, password } = request.body;
 

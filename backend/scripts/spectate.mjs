@@ -16,7 +16,7 @@ socket.on('connect', () => {
   console.log(`[spectator] watching ${code} on ${url}`);
 });
 
-for (const event of ['match:started', 'match:score', 'match:score-undone', 'match:ended']) {
+for (const event of ['match:started', 'match:score', 'match:score-undone', 'match:ended', 'match:settings']) {
   socket.on(event, (payload) => {
     const teams = payload.match.teams.map((t) => `${t.name} ${t.finalScore}`).join(' vs ');
     const extra = payload.event
@@ -27,3 +27,11 @@ for (const event of ['match:started', 'match:score', 'match:score-undone', 'matc
     console.log(`[spectator] ${event}: ${teams}${extra}`);
   });
 }
+
+socket.on('match:comment', ({ comment }) => {
+  console.log(`[spectator] match:comment: ${comment.authorName}: ${comment.body}`);
+});
+
+socket.on('match:mvp', ({ mvp }) => {
+  console.log(`[spectator] match:mvp: ${mvp ? mvp.username : 'none'}`);
+});

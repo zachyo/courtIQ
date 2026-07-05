@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Game managers only — players never need credentials (see PRD A2.1)
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  displayName  String
+  createdAt    DateTime @default(now())
+
+  players Player[]
+  matches Match[]
+}
+
+// Lightweight player registered by a manager via unique username — no account
+model Player {
+  id              String   @id @default(cuid())
+  username        String   @unique
+  displayName     String
+  avatarColour    String?
+  keptForFuture   Boolean  @default(false)
+  claimedByUserId String?
+  createdAt       DateTime @default(now())
+
+  managerId String
+  manager   User   @relation(fields: [managerId], references: [id], onDelete: Cascade)
+
+  matchPlayers MatchPlayer[]
+}
+
+enum MatchStatus {
+  PENDING
+  LIVE
+  FINISHED
+}
+
+enum MatchVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+model Match {
+  id              String          @id @default(cuid())
+  code            String          @unique
+  status          MatchStatus     @default(PENDING)
+  visibility      MatchVisibility @default(PUBLIC)
+  commentsEnabled Boolean         @default(true)
+  targetScore     Int?
+  timerSeconds    Int?
+  winnerTeamId    String?
+  mvpPlayerId     String?
+  startedAt       DateTime?
+  endedAt         DateTime?
+  createdAt       DateTime        @default(now())
+
+  managerId String
+  manager   User   @relation(fields: [managerId], references: [id], onDelete: Cascade)
+
+  teams       MatchTeam[]
+  players     MatchPlayer[]
+  scoreEvents ScoreEvent[]
+  comments    Comment[]
+}
+
+model MatchTeam {
+  id         String @id @default(cuid())
+  name       String
+  colour     String
+  finalScore Int    @default(0)
+
+  matchId String
+  match   Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  players     MatchPlayer[]
+  scoreEvents ScoreEvent[]
+}
+
+model MatchPlayer {
+  id     String @id @default(cuid())
+  points Int    @default(0)
+
+  matchId  String
+  match    Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  teamId   String
+  team     MatchTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  playerId String
+  player   Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  scoreEvents ScoreEvent[]
+
+  @@unique([matchId, playerId])
+}
+
+model ScoreEvent {
+  id        String   @id @default(cuid())
+  points    Int
+  undone    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  matchId       String
+  match         Match       @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  matchPlayerId String
+  matchPlayer   MatchPlayer @relation(fields: [matchPlayerId], references: [id], onDelete: Cascade)
+  teamId        String
+  team          MatchTeam   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+}
+
+// Spectators comment with just a display name — userId set only for managers
+model Comment {
+  id         String   @id @default(cuid())
+  authorName String
+  userId     String?
+  body       String
+  createdAt  DateTime @default(now())
+
+  matchId String
+  match   Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+}

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Switch from '@radix-ui/react-switch';
 import { api } from '../api';
-import type { Match } from '../types';
+import type { ClaimedPlayer, Match } from '../types';
 
 const statusBadge: Record<Match['status'], string> = {
   PENDING: 'badge badge-pending',
@@ -20,6 +20,8 @@ export default function DashboardPage() {
   const [teamBName, setTeamBName] = useState('Team B');
   const [teamBColour, setTeamBColour] = useState('#2563eb');
   const [targetScore, setTargetScore] = useState('');
+  const [timerMode, setTimerMode] = useState<'none' | 'countup' | 'countdown'>('none');
+  const [timerMinutes, setTimerMinutes] = useState('20');
   const [commentsEnabled, setCommentsEnabled] = useState(true);
   const [isPublic, setIsPublic] = useState(true);
   const [error, setError] = useState('');
@@ -44,6 +46,11 @@ export default function DashboardPage() {
           commentsEnabled,
           visibility: isPublic ? 'PUBLIC' : 'PRIVATE',
           ...(targetScore ? { targetScore: Number(targetScore) } : {}),
+          // null = no timer, 0 = count-up, >0 = countdown duration
+          ...(timerMode === 'countup' ? { timerSeconds: 0 } : {}),
+          ...(timerMode === 'countdown' && timerMinutes
+            ? { timerSeconds: Number(timerMinutes) * 60 }
+            : {}),
         },
       });
       navigate(`/match/${data.match.id}`);
@@ -116,19 +123,55 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <label className="label" htmlFor="targetScore">
-                  Target score (optional)
-                </label>
-                <input
-                  id="targetScore"
-                  className="input"
-                  type="number"
-                  min={1}
-                  max={1000}
-                  placeholder="e.g. 21 — leave empty for open play"
-                  value={targetScore}
-                  onChange={(e) => setTargetScore(e.target.value)}
-                />
+                <div className="grid-2">
+                  <div>
+                    <label className="label" htmlFor="targetScore">
+                      Target score (optional)
+                    </label>
+                    <input
+                      id="targetScore"
+                      className="input"
+                      type="number"
+                      min={1}
+                      max={1000}
+                      placeholder="e.g. 21"
+                      value={targetScore}
+                      onChange={(e) => setTargetScore(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="label" htmlFor="timerMode">
+                      Game timer (optional)
+                    </label>
+                    <div className="field-row">
+                      <select
+                        id="timerMode"
+                        className="input"
+                        value={timerMode}
+                        onChange={(e) =>
+                          setTimerMode(e.target.value as 'none' | 'countup' | 'countdown')
+                        }
+                      >
+                        <option value="none">No timer</option>
+                        <option value="countup">Count up</option>
+                        <option value="countdown">Countdown</option>
+                      </select>
+                      {timerMode === 'countdown' && (
+                        <input
+                          className="input"
+                          type="number"
+                          min={1}
+                          max={240}
+                          required
+                          aria-label="Countdown minutes"
+                          value={timerMinutes}
+                          onChange={(e) => setTimerMinutes(e.target.value)}
+                          style={{ maxWidth: '5.5rem' }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
 
                 <div className="switch-row" style={{ marginTop: '1rem' }}>
                   <label htmlFor="commentsEnabled">Allow comments during the match</label>
@@ -216,6 +259,84 @@ export default function DashboardPage() {
           );
         })
       )}
+
+      <ClaimedProfiles />
     </main>
+  );
+}
+
+// A2.1 P2 — claim your username to own its stats and history
+function ClaimedProfiles() {
+  const [claimed, setClaimed] = useState<ClaimedPlayer[]>([]);
+  const [username, setUsername] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api<{ players: ClaimedPlayer[] }>('/api/players/claimed')
+      .then((data) => setClaimed(data.players))
+      .catch(() => {});
+  }, []);
+
+  async function claim(e: FormEvent) {
+    e.preventDefault();
+    setError('');
+    try {
+      const data = await api<{ player: Omit<ClaimedPlayer, 'stats'>; stats: ClaimedPlayer['stats'] }>(
+        '/api/players/claim',
+        { method: 'POST', body: { username: username.trim() } },
+      );
+      setClaimed((prev) =>
+        prev.some((p) => p.id === data.player.id)
+          ? prev
+          : [...prev, { ...data.player, stats: data.stats }],
+      );
+      setUsername('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not claim that username');
+    }
+  }
+
+  return (
+    <>
+      <div className="section-head" style={{ marginTop: '2rem' }}>
+        <h2>Your player profile</h2>
+      </div>
+      <div className="card">
+        {claimed.length === 0 ? (
+          <p className="muted" style={{ marginTop: 0 }}>
+            Played under a username someone else registered? Claim it to own your career stats.
+          </p>
+        ) : (
+          claimed.map((player) => (
+            <div className="player-row" key={player.id}>
+              <span>
+                <strong>{player.displayName}</strong>{' '}
+                <span className="muted">@{player.username}</span>
+              </span>
+              <span className="muted">
+                {player.stats.points} pts · {player.stats.games} games · {player.stats.wins} wins ·{' '}
+                {player.stats.mvps} MVPs
+              </span>
+            </div>
+          ))
+        )}
+        <form className="field-row" style={{ marginTop: '0.75rem' }} onSubmit={claim}>
+          <input
+            className="input"
+            placeholder="username"
+            aria-label="Username to claim"
+            value={username}
+            pattern="[a-zA-Z0-9_]{3,20}"
+            title="3–20 letters, digits or underscore"
+            required
+            onChange={(e) => setUsername(e.target.value)}
+          />
+          <button type="submit" className="btn">
+            Claim
+          </button>
+        </form>
+        {error && <p className="error">{error}</p>}
+      </div>
+    </>
   );
 }

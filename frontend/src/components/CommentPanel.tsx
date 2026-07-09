@@ -23,7 +23,8 @@ export default function CommentPanel({
       localStorage.setItem(NAME_KEY, name);
       await api(`/api/matches/code/${match.code}/comments`, {
         method: 'POST',
-        body: { authorName: name, body },
+        // Blank name → posted as "Anonymous"
+        body: { ...(name.trim() ? { authorName: name.trim() } : {}), body },
       });
       setBody(''); // the new comment arrives via the socket broadcast
     } catch (err) {
@@ -55,11 +56,10 @@ export default function CommentPanel({
             <input
               className="input"
               style={{ maxWidth: '10rem' }}
-              placeholder="Your name"
-              aria-label="Your name"
+              placeholder="Name (optional)"
+              aria-label="Your name (optional)"
               value={name}
               maxLength={30}
-              required
               onChange={(e) => setName(e.target.value)}
             />
             <input

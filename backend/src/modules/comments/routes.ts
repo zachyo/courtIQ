@@ -4,9 +4,10 @@ import { broadcastToMatch } from '../../realtime/socket.js';
 
 const commentBody = {
   type: 'object',
-  required: ['authorName', 'body'],
+  required: ['body'],
   properties: {
-    authorName: { type: 'string', minLength: 1, maxLength: 30 },
+    // Optional — blank/missing means the comment is posted as "Anonymous"
+    authorName: { type: 'string', maxLength: 30 },
     body: { type: 'string', minLength: 1, maxLength: 300 },
   },
   additionalProperties: false,
@@ -45,8 +46,8 @@ export async function commentRoutes(app: FastifyInstance) {
     return { comments: comments.map(serializeComment) };
   });
 
-  // Spectators comment with just a display name — no account needed
-  app.post<{ Params: { code: string }; Body: { authorName: string; body: string } }>(
+  // Spectators comment with just a display name — no account needed, name optional
+  app.post<{ Params: { code: string }; Body: { authorName?: string; body: string } }>(
     '/code/:code/comments',
     {
       schema: { body: commentBody },
@@ -78,7 +79,7 @@ export async function commentRoutes(app: FastifyInstance) {
       const comment = await prisma.comment.create({
         data: {
           matchId: match.id,
-          authorName: request.body.authorName,
+          authorName: request.body.authorName?.trim() || 'Anonymous',
           body: request.body.body,
           userId,
         },

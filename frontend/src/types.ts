@@ -81,4 +81,16 @@ export interface Player {
   displayName: string;
   avatarColour: string | null;
   keptForFuture: boolean;
+  claimed: boolean;
+}
+
+export interface CareerStats {
+  games: number;
+  points: number;
+  wins: number;
+  mvps: number;
+}
+
+export interface ClaimedPlayer extends Player {
+  stats: CareerStats;
 }

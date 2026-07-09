@@ -1,4 +1,5 @@
 import type { Match } from '../types';
+import GameTimer from './GameTimer';
 
 export default function ScoreBoard({ match }: { match: Match }) {
   const [a, b] = match.teams;
@@ -25,6 +26,7 @@ export default function ScoreBoard({ match }: { match: Match }) {
             to {match.targetScore}
           </div>
         )}
+        <GameTimer match={match} />
       </div>
       <div>
         <div className="team-name">

@@ -19,7 +19,8 @@ const settingsProperties = {
   commentsEnabled: { type: 'boolean' },
   visibility: { type: 'string', enum: ['PUBLIC', 'PRIVATE'] },
   targetScore: { type: ['integer', 'null'], minimum: 1, maximum: 1000 },
-  timerSeconds: { type: ['integer', 'null'], minimum: 60, maximum: 14400 },
+  // null = no timer, 0 = count-up, >0 = countdown duration
+  timerSeconds: { type: ['integer', 'null'], minimum: 0, maximum: 14400 },
 } as const;
 
 const createMatchBody = {

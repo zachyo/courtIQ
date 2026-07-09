@@ -16,9 +16,10 @@ import { commentRoutes } from './modules/comments/routes.js';
 
 export async function buildApp() {
   const app = Fastify({
-    logger: {
-      level: env.nodeEnv === 'production' ? 'info' : 'debug',
-    },
+    logger:
+      env.nodeEnv === 'test'
+        ? false
+        : { level: env.nodeEnv === 'production' ? 'info' : 'debug' },
   });
 
   await app.register(cors, { origin: env.corsOrigin });

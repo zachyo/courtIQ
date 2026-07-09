@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import * as Tabs from '@radix-ui/react-tabs';
 import { api, ApiError } from '../api';
 import { getSocket, joinMatch, leaveMatch } from '../socket';
 import type { CommentEntry, Match, ScoreEventEntry } from '../types';
 import ScoreBoard from '../components/ScoreBoard';
 import EventFeed from '../components/EventFeed';
+import TeamTotals from '../components/TeamTotals';
 import CommentPanel from '../components/CommentPanel';
 import ThemeToggle from '../components/ThemeToggle';
 
@@ -114,8 +116,22 @@ export default function SpectatePage() {
 
         <div className="grid-2" style={{ marginTop: '1rem' }}>
           <div className="card">
-            <h3 style={{ marginTop: 0 }}>Score feed</h3>
-            <EventFeed events={events} match={match} />
+            <Tabs.Root defaultValue="players">
+              <Tabs.List className="tabs-list" aria-label="Match details">
+                <Tabs.Trigger className="tabs-trigger" value="players">
+                  Players
+                </Tabs.Trigger>
+                <Tabs.Trigger className="tabs-trigger" value="feed">
+                  Score feed
+                </Tabs.Trigger>
+              </Tabs.List>
+              <Tabs.Content value="players">
+                <TeamTotals match={match} />
+              </Tabs.Content>
+              <Tabs.Content value="feed">
+                <EventFeed events={events} match={match} />
+              </Tabs.Content>
+            </Tabs.Root>
           </div>
           <div className="card">
             <h3 style={{ marginTop: 0 }}>Comments</h3>
